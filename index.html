@@ -55,6 +55,10 @@
     border-radius: 9px; padding: 7px 12px; cursor:pointer; font: inherit; }
   #panel button:hover{ background: rgba(0,208,255,.26); }
   #panel button.on{ background: rgba(120,255,180,.2); border-color:rgba(120,255,180,.55); color:#d6ffe6; }
+  #panel button.danger{ background: rgba(255,90,120,.16); border-color:rgba(255,90,120,.5); color:#ffc4d0; }
+  #panel button{ display:inline-flex; align-items:center; gap:6px; }
+  button svg, #hudToggle svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  #hudToggle svg{ width:19px; height:19px; }
 
   #hint{ position:fixed; top:14px; right:14px; z-index:10; color:#7d93bd; font-size:11px; text-align:right; line-height:1.7; }
   #hint b{ color:#9fe6ff; }
@@ -83,7 +87,7 @@
 <body>
 <div id="app"></div>
 
-<div id="hudToggle" title="show / hide stats">📊</div>
+<div id="hudToggle" title="show / hide stats"><svg viewBox="0 0 24 24"><line x1="6" y1="20" x2="6" y2="13"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="18" y1="20" x2="18" y2="4"/></svg></div>
 
 <div id="title"><h2>Genesis</h2><p>scroll to gather the world</p></div>
 <div id="scrollcue">scroll ↓</div>
@@ -105,9 +109,9 @@
 </div>
 
 <div id="hint">
-  <b>SCROLL ↓</b> — particles gather into Earth 🌍<br/>
+  <b>SCROLL ↓</b> — particles gather into Earth<br/>
   drag — orbit · pinch — zoom<br/>
-  raise the slider, then form the world 🔥
+  raise the slider, then form the world
 </div>
 
 <div id="panel">
@@ -115,10 +119,11 @@
     <input id="slider" type="range" min="50000" max="10000000" step="50000" value="1500000" />
     <span class="val" id="sliderVal">1,500,000</span>
   </label>
-  <button id="sound">♪ Sound on</button>
-  <button id="max">🔥 10M MAX</button>
-  <button id="insane">🤯 25M</button>
-  <button id="top">↺ Re-form</button>
+  <button id="sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg><span>Sound on</span></button>
+  <button id="max"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 11 14 9 22 21 10 13 10 13 2"/></svg>10M MAX</button>
+  <button id="insane"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.5 0 2.5-1 2.5-3 0-1.5-1-2.3-1-4 0-2 1.5-3 1.5-3s-.5 3 2 4.5c1.6 1 2.5 2.3 2.5 4A6.5 6.5 0 1 1 7 9c0 2 1.5 3 1.5 5.5z"/></svg>25M</button>
+  <button id="billion" class="danger"><svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>1 Billion</button>
+  <button id="top"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Re-form</button>
 </div>
 
 <script type="importmap">
@@ -173,7 +178,7 @@ function loadEarth() {
 }
 // sample earth color (r,g,b 0..1) + isLand, at lat/lon direction (nx,ny,nz unit)
 function sampleEarth(nx, ny, nz, out) {
-  const u = 0.5 + Math.atan2(nz, nx) / (2*Math.PI);
+  const u = 0.5 - Math.atan2(nz, nx) / (2*Math.PI);   // flip longitude → correct east/west
   const v = 0.5 - Math.asin(ny) / Math.PI;
   if (earthData) {
     const px = Math.min(earthW-1, (u*earthW)|0), py = Math.min(earthH-1, (v*earthH)|0);
@@ -412,10 +417,19 @@ $('slider').addEventListener('input',e=>$('sliderVal').textContent=fmt(+e.target
 $('slider').addEventListener('change',e=>rebuild(+e.target.value));
 $('max').addEventListener('click',()=>{ $('slider').value=10000000; rebuild(10000000); });
 $('insane').addEventListener('click',()=>{ $('slider').value=$('slider').max; rebuild(25000000); });
+$('billion').addEventListener('click',()=>{
+  const ok = confirm(
+    '⚠ 1,000,000,000 particles\n\n'+
+    'This needs roughly 40+ GB of memory just for the data — far beyond any browser. '+
+    'It will almost certainly run out of memory and may freeze or crash this tab.\n\n'+
+    'Are you SURE you want to try? (it is very heavy)');
+  if (ok) rebuild(1000000000);
+});
 $('top').addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
-$('sound').addEventListener('click',e=>{ if(!audioOn){ startAudio(); e.target.classList.add('on'); e.target.textContent='♪ Sound ✓'; }
-  else { if(audio.state==='running'){audio.suspend(); e.target.textContent='♪ Sound off'; e.target.classList.remove('on');}
-         else {audio.resume(); e.target.textContent='♪ Sound ✓'; e.target.classList.add('on');} } });
+$('sound').addEventListener('click',()=>{ const btn=$('sound'), lbl=btn.querySelector('span');
+  if(!audioOn){ startAudio(); btn.classList.add('on'); lbl.textContent='Sound ✓'; }
+  else if(audio.state==='running'){ audio.suspend(); lbl.textContent='Sound off'; btn.classList.remove('on'); }
+  else { audio.resume(); lbl.textContent='Sound ✓'; btn.classList.add('on'); } });
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); readScroll(); });
 
 // ---- go ----
