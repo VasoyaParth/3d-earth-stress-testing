@@ -12,12 +12,26 @@
   #app { position: fixed; inset: 0; z-index: 0; }
   canvas { display: block; touch-action: pan-y; }
 
-  #hud {
-    position: fixed; top: 14px; left: 14px; z-index: 10;
-    background: rgba(8,10,22,.58); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(120,160,255,.22); border-radius: 14px; padding: 14px 16px; min-width: 232px;
-    color: #cfe0ff; font-size: 12px; line-height: 1.5; box-shadow: 0 8px 40px rgba(0,0,0,.5); user-select: none;
+  /* toggle button (navbar-style) */
+  #hudToggle {
+    position: fixed; top: 12px; left: 12px; z-index: 12;
+    width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(8,10,22,.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(120,160,255,.28); color: #9fe6ff; font-size: 18px;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+    box-shadow: 0 6px 24px rgba(0,0,0,.45); transition: background .15s, transform .15s;
   }
+  #hudToggle:active { transform: scale(.92); }
+
+  #hud {
+    position: fixed; top: 62px; left: 12px; z-index: 11;
+    background: rgba(8,10,22,.62); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(120,160,255,.22); border-radius: 14px; padding: 13px 15px; width: 236px; max-width: calc(100vw - 24px);
+    color: #cfe0ff; font-size: 12px; line-height: 1.5; box-shadow: 0 8px 40px rgba(0,0,0,.5); user-select: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  /* hidden state — card slides up out of the way, toggle stays */
+  body.hud-hidden #hud { opacity: 0; transform: translateY(-12px) scale(.97); pointer-events: none; }
   #hud h1 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #7fd1ff; margin-bottom: 10px; font-weight: 700; }
   .row { display: flex; justify-content: space-between; gap: 14px; margin: 3px 0; }
   .row .k { color: #8aa0c8; } .row .v { color: #eaf2ff; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -53,10 +67,23 @@
   #title h2{ font-family:Georgia, serif; font-weight:400; font-size:clamp(22px,5vw,52px); letter-spacing:.04em;
     text-shadow:0 0 30px rgba(80,160,255,.4); }
   #title p{ color:#86a0cc; font-size:12px; letter-spacing:.3em; text-transform:uppercase; margin-top:10px; }
+
+  /* ---- mobile ---- */
+  @media (max-width: 640px) {
+    #hud { top: 58px; left: 10px; right: 10px; width: auto; font-size: 11px; padding: 11px 13px; }
+    #hud .bar { height: 5px; margin: 2px 0 7px; }
+    #hint { display: none; }
+    #panel { gap: 8px; padding: 9px 11px; bottom: 10px; left: 10px; right: 10px; }
+    #panel input[type=range]{ width: 100%; }
+    #panel label:first-child { flex: 1 1 100%; }
+    #panel button { flex: 1 1 auto; padding: 9px 8px; }
+  }
 </style>
 </head>
 <body>
 <div id="app"></div>
+
+<div id="hudToggle" title="show / hide stats">📊</div>
 
 <div id="title"><h2>Genesis</h2><p>scroll to gather the world</p></div>
 <div id="scrollcue">scroll ↓</div>
@@ -85,11 +112,12 @@
 
 <div id="panel">
   <label>Particles
-    <input id="slider" type="range" min="50000" max="4000000" step="50000" value="1200000" />
-    <span class="val" id="sliderVal">1,200,000</span>
+    <input id="slider" type="range" min="50000" max="10000000" step="50000" value="1500000" />
+    <span class="val" id="sliderVal">1,500,000</span>
   </label>
   <button id="sound">♪ Sound on</button>
-  <button id="max">MAX POWER 🔥</button>
+  <button id="max">🔥 10M MAX</button>
+  <button id="insane">🤯 25M</button>
   <button id="top">↺ Re-form</button>
 </div>
 
@@ -288,9 +316,20 @@ function updateHUD(){
   $('count').textContent=fmt(currentCount);
 }
 
+// ---- HUD show/hide (navbar style) + auto-hide on scroll ----
+document.body.classList.add('hud-hidden');         // hidden by default
+let hudPinned = false;                              // user explicitly opened it
+$('hudToggle').addEventListener('click', ()=>{
+  hudPinned = document.body.classList.contains('hud-hidden');
+  document.body.classList.toggle('hud-hidden', !hudPinned);
+});
+
 // ---- scroll-driven formation ----
 let progress=0, target=0;
-function readScroll(){ const max=document.body.scrollHeight-innerHeight; target = max>0 ? Math.min(1, scrollY/max) : 0; }
+function readScroll(){
+  const max=document.body.scrollHeight-innerHeight; target = max>0 ? Math.min(1, scrollY/max) : 0;
+  document.body.classList.add('hud-hidden'); hudPinned=false;   // always hide while scrolling
+}
 addEventListener('scroll', readScroll, { passive:true });
 
 // ---- ambient interactive audio ----
@@ -364,9 +403,15 @@ dom.addEventListener('touchmove',e=>{ if(e.touches.length===2){ const d=Math.hyp
 dom.addEventListener('touchend',()=>pinchD=0);
 
 // ---- controls ----
+// build heavy counts without freezing the UI silently
+function rebuild(n){
+  $('count').textContent='building '+fmt(n)+'…'; $('sliderVal').textContent=fmt(n);
+  setTimeout(()=>{ try { build(n); } catch(err){ $('count').textContent='⚠ too many — out of memory'; } }, 30);
+}
 $('slider').addEventListener('input',e=>$('sliderVal').textContent=fmt(+e.target.value));
-$('slider').addEventListener('change',e=>build(+e.target.value));
-$('max').addEventListener('click',()=>{ $('slider').value=$('slider').max; $('sliderVal').textContent=fmt(+$('slider').max); build(+$('slider').max); });
+$('slider').addEventListener('change',e=>rebuild(+e.target.value));
+$('max').addEventListener('click',()=>{ $('slider').value=10000000; rebuild(10000000); });
+$('insane').addEventListener('click',()=>{ $('slider').value=$('slider').max; rebuild(25000000); });
 $('top').addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
 $('sound').addEventListener('click',e=>{ if(!audioOn){ startAudio(); e.target.classList.add('on'); e.target.textContent='♪ Sound ✓'; }
   else { if(audio.state==='running'){audio.suspend(); e.target.textContent='♪ Sound off'; e.target.classList.remove('on');}
@@ -374,7 +419,7 @@ $('sound').addEventListener('click',e=>{ if(!audioOn){ startAudio(); e.target.cl
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); readScroll(); });
 
 // ---- go ----
-loadEarth().then(()=>{ build(1_200_000); readScroll(); animate(); });
+loadEarth().then(()=>{ build(1_500_000); readScroll(); animate(); });
 </script>
 </body>
 </html>
